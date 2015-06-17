@@ -14,15 +14,19 @@ void usage(char** argv);
 
 int main(int argc, char** argv){
 
-if(argc != 4){
-	usage(argv);
-	return -1;
-}
-
-
+int boolPrettyPrint = 1;
+char* formatStringData = "%.2X ";
 unsigned int WIDTH = 0x20u;
 
-int pid = atoi(argv[1]);
+//pid is always the last argument
+int pid = atoi(argv[argc-1]);
+
+//check if the user wants raw output for use in like xxd
+if(strcmp(argv[1],"-r") == 0 || strcmp(argv[1],"--raw-output") == 0 ){
+	boolPrettyPrint=0;
+	formatStringData = "";
+}
+
 long offsetBegin=strtoul(argv[2], NULL, 16);
 long offsetEnd=strtoul(argv[3], NULL, 16);
 
@@ -42,13 +46,15 @@ waitpid(pid, NULL, 0);
 int i=0;
 long offsetItr;
 
-//printing out bytes, page by page
-printf("%s", CRED);
-
-for(i=0; i<WIDTH; i++)
-	printf("%.2X ", i);
-printf("\n\n");
-printf("%s", CNORMAL);
+if(boolPrettyPrint){
+	//printing out bytes, page by page
+	printf("%s", CRED);
+	
+	for(i=0; i<WIDTH; i++)
+		printf((const char*)formatStringData, i);
+	printf("\n\n");
+	printf("%s", CNORMAL);
+}
 //first lets start with a 0x....0 offset
 offsetBegin = (offsetBegin - (offsetBegin & 0xFF) );
 
@@ -58,21 +64,24 @@ for(offsetItr=offsetBegin; offsetItr < offsetEnd; offsetItr+=WIDTH ){
 	read(mem_fd, buf, WIDTH);
 
 	for(i=0; i<WIDTH; i++){
-		printf("%.2X ", buf[i]);
+		printf((const char*)formatStringData, buf[i]);
 	}
 
-	printf(" : 0x%X\n", offsetItr);
-
+	//I know conditionals inside loops are bad...
+	if(boolPrettyPrint){
+		printf(" : 0x%X\n", offsetItr);
+	}
 }
 
-printf("\n");
-printf("%s", CRED);
-for(i=0; i<WIDTH; i++)
-	printf("%.2X ", i);
-printf("%s", CNORMAL);
-
-printf("\n");
-
+if(boolPrettyPrint){
+	printf("\n");
+	printf("%s", CRED);
+	for(i=0; i<WIDTH; i++)
+		printf("%.2X ", i);
+	printf("%s", CNORMAL);
+	
+	printf("\n");
+}
 //just to be proper
 close(mem_fd);
 
@@ -81,5 +90,5 @@ return 0;
 }
 
 void usage(char** argv){
-	printf("Usage: %s <pid> <Start Address in hex> <End Address in hex>\n", argv[0]);
+	printf("Usage: %s [-r|--raw-output] <Start Address in hex> <End Address in hex> <PID>\n", argv[0]);
 }
