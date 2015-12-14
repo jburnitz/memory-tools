@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 	//gives contexual information to the output
 	if (boolPrettyPrint) {
 		//header
-		printf("%17s", CRED);
+		printf("%15s", CRED);
 
 		for (i = 0; i < WIDTH; i++)
 			printf("%.2X ", i);
@@ -71,16 +71,19 @@ int main(int argc, char **argv)
 			lseek(mem_fd, offsetItr, SEEK_SET);
 			read(mem_fd, buf, WIDTH);
 
-			printf("\n %#x : ", offsetItr);
+			printf("\n%#x: ", offsetItr);
 
 			for (i = 0; i < WIDTH; i++)
 				printf("%.2X ", buf[i]);
 
-			printf(": %#x", offsetItr + i);
+			 for (i = 0; i < WIDTH; i++)
+				if(isprint((char) buf[i]))
+	                                printf("%c", buf[i]);
+				else
+					printf(".");
 		}
-
 		//footer
-		printf("\n%17s", CRED);
+		printf("\n%15s", CRED);
 		for (i = 0; i < WIDTH; i++)
 			printf("%.2X ", i);
 		printf("%s\n", CNORMAL);
