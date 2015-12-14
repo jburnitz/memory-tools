@@ -10,85 +10,97 @@
 #define CNORMAL  "\x1B[0m"
 #define CRED  "\x1B[31m"
 
-void usage(char** argv);
+void usage(char **argv);
 
-int main(int argc, char** argv){
+int main(int argc, char **argv)
+{
+	int boolPrettyPrint = 1;
+	unsigned int WIDTH = 0x20u;
 
-int boolPrettyPrint = 1;
-char* formatStringData = "%.2X ";
-unsigned int WIDTH = 0x20u;
-
-//pid is always the last argument
-int pid = atoi(argv[argc-1]);
-
-//check if the user wants raw output for use in like xxd
-if(strcmp(argv[1],"-r") == 0 || strcmp(argv[1],"--raw-output") == 0 ){
-	boolPrettyPrint=0;
-	formatStringData = "";
-}
-
-long offsetBegin=strtoul(argv[2], NULL, 16);
-long offsetEnd=strtoul(argv[3], NULL, 16);
-
-char mem_file_name[80];
-int mem_fd;
-unsigned char buf[_SC_PAGE_SIZE];
-
-sprintf(mem_file_name, "/proc/%d/mem", pid);
-
-//read the image now
-mem_fd = open(mem_file_name, O_RDONLY);
-
-//pauses the process sends SIG_STOP
-ptrace(PTRACE_ATTACH, pid, NULL, NULL);
-waitpid(pid, NULL, 0);
-
-int i=0;
-long offsetItr;
-
-if(boolPrettyPrint){
-	//printing out bytes, page by page
-	printf("%s", CRED);
-	
-	for(i=0; i<WIDTH; i++)
-		printf((const char*)formatStringData, i);
-	printf("\n\n");
-	printf("%s", CNORMAL);
-}
-//first lets start with a 0x....0 offset
-offsetBegin = (offsetBegin - (offsetBegin & 0xFF) );
-
-for(offsetItr=offsetBegin; offsetItr < offsetEnd; offsetItr+=WIDTH ){
-
-	lseek(mem_fd, offsetItr, SEEK_SET);
-	read(mem_fd, buf, WIDTH);
-
-	for(i=0; i<WIDTH; i++){
-		printf((const char*)formatStringData, buf[i]);
+	if (argc < 4) {
+		usage(argv);
+		return -1;
 	}
 
-	//I know conditionals inside loops are bad...
-	if(boolPrettyPrint){
-		printf(" : 0x%X\n", offsetItr);
+	//check if the user wants raw output for use in like xxd
+	int arg_idx = 1;
+	if (strcmp(argv[arg_idx], "-r") == 0 || strcmp(argv[arg_idx], "--raw-output") == 0) {
+		boolPrettyPrint = 0;
+		arg_idx++;
 	}
+
+	//interpret address as hex
+	unsigned long offsetBegin = strtoul(argv[arg_idx++], NULL, 16);
+	unsigned long offsetEnd = strtoul(argv[arg_idx++], NULL, 16);
+
+	//pid is always the last argument
+	unsigned int pid = atoi(argv[arg_idx]);
+
+	char mem_file_name[80];
+	int mem_fd;
+
+	//most efficient to read page by page
+	unsigned char buf[_SC_PAGE_SIZE];
+
+	sprintf(mem_file_name, "/proc/%d/mem", pid);
+
+	//read the memory image now
+	mem_fd = open(mem_file_name, O_RDONLY);
+
+	//pauses the process sends SIG_STOP
+	ptrace(PTRACE_ATTACH, pid, NULL, NULL);
+	waitpid(pid, NULL, 0);
+
+	int i = 0;
+	unsigned int offsetItr;
+
+	//first lets start with a 0x....0 offset
+	offsetBegin = (offsetBegin - (offsetBegin & 0xFF));
+
+	//gives contexual information to the output
+	if (boolPrettyPrint) {
+		//header
+		printf("%17s", CRED);
+
+		for (i = 0; i < WIDTH; i++)
+			printf("%.2X ", i);
+
+		printf("%s", CNORMAL);
+
+		for (offsetItr = offsetBegin; offsetItr < offsetEnd; offsetItr += WIDTH) {
+			lseek(mem_fd, offsetItr, SEEK_SET);
+			read(mem_fd, buf, WIDTH);
+
+			printf("\n %#x : ", offsetItr);
+
+			for (i = 0; i < WIDTH; i++)
+				printf("%.2X ", buf[i]);
+
+			printf(": %#x", offsetItr + i);
+		}
+
+		//footer
+		printf("\n%17s", CRED);
+		for (i = 0; i < WIDTH; i++)
+			printf("%.2X ", i);
+		printf("%s\n", CNORMAL);
+	} else {
+		//if not pretty its ugly
+		for (offsetItr = offsetBegin; offsetItr < offsetEnd; offsetItr += WIDTH) {
+			lseek(mem_fd, offsetItr, SEEK_SET);
+			read(mem_fd, buf, WIDTH);
+
+			fwrite(buf, 1, WIDTH, stdout);
+		}
+	}
+
+	//just to be proper
+	close(mem_fd);
+
+	return 0;
 }
 
-if(boolPrettyPrint){
-	printf("\n");
-	printf("%s", CRED);
-	for(i=0; i<WIDTH; i++)
-		printf("%.2X ", i);
-	printf("%s", CNORMAL);
-	
-	printf("\n");
-}
-//just to be proper
-close(mem_fd);
-
-return 0;
-
-}
-
-void usage(char** argv){
+void usage(char **argv)
+{
 	printf("Usage: %s [-r|--raw-output] <Start Address in hex> <End Address in hex> <PID>\n", argv[0]);
 }
